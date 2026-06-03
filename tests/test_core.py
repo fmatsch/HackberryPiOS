@@ -13,8 +13,11 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import tempfile
+
+from hackberrypios.core import baseline, profiles
 from hackberrypios.core import recommendations as reco
-from hackberrypios.core import shares, utils, wifi
+from hackberrypios.core import discovery, ports, security, shares, utils, wifi
 from hackberrypios.core.security import Severity
 
 
@@ -82,6 +85,63 @@ def test_recommendation_scoring_penalises_issues():
 
 def test_severity_ordering():
     assert Severity.CRITICAL > Severity.HIGH > Severity.MEDIUM > Severity.LOW
+
+
+def test_profile_roundtrip(tmp_path_dir=None):
+    profiles.PROFILE_DIR = tempfile.mkdtemp()
+    p = profiles.Profile(name="Acme HQ", domain="acme.local",
+                         subnet="10.0.0.0/24", ntp_server="10.0.0.10")
+    profiles.save(p)
+    assert "Acme HQ" in profiles.list_profiles()
+    loaded = profiles.load("Acme HQ")
+    assert loaded is not None and loaded.domain == "acme.local"
+    assert profiles.delete("Acme HQ")
+    assert "Acme HQ" not in profiles.list_profiles()
+
+
+def test_baseline_diff_detects_changes():
+    profiles.PROFILE_DIR = tempfile.mkdtemp()
+    H = discovery.Host
+    baseline.save("net", [H("10.0.0.5", mac="aa:aa:aa:aa:aa:01", name="pc1"),
+                          H("10.0.0.6", mac="aa:aa:aa:aa:aa:02", name="pc2")])
+    diff = baseline.compare("net", [
+        H("10.0.0.5", mac="aa:aa:aa:aa:aa:01", name="pc1"),   # unchanged
+        H("10.0.0.7", mac="aa:aa:aa:aa:aa:99", name="rogue"),  # new
+    ])
+    assert diff.had_baseline
+    assert len(diff.new_hosts) == 1 and diff.new_hosts[0].name == "rogue"
+    assert len(diff.missing_hosts) == 1 and diff.missing_hosts[0].name == "pc2"
+    assert not diff.clean
+
+
+def test_baseline_without_prior_is_flagged():
+    profiles.PROFILE_DIR = tempfile.mkdtemp()
+    diff = baseline.compare("never-saved", [])
+    assert diff.had_baseline is False
+
+
+def test_channel_recommendation():
+    sv = wifi.WifiSurvey()
+    sv.access_points = [wifi.AccessPoint("a", channel="1"),
+                        wifi.AccessPoint("b", channel="1"),
+                        wifi.AccessPoint("c", channel="6"),
+                        wifi.AccessPoint("d", channel="44")]
+    advice = wifi.analyse_channels(sv)
+    assert advice.best_24 == 11          # least congested non-overlapping
+    assert advice.best_5 == 44
+
+
+def test_version_cve_hint():
+    findings = security.evaluate_versions(
+        "1.2.3.4", [ports.OpenPort(port=21, service="ftp", version="vsftpd 2.3.4")])
+    assert findings and findings[0].severity == Severity.CRITICAL
+
+
+def test_baseline_diff_recommendation_penalises_new_hosts():
+    a = reco.build(baseline_diff=baseline.BaselineDiff(
+        new_hosts=[baseline.BaselineHost("10.0.0.9", "mac", "rogue")]))
+    assert a.score < 100
+    assert any("new" in r.text.lower() for r in a.top)
 
 
 def _run_all():

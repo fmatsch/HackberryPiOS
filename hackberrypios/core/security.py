@@ -147,3 +147,61 @@ def evaluate_wifi(survey) -> list[Finding]:
             recommendation="Migrate to WPA2/WPA3.",
         ))
     return findings
+
+
+def sweep_smb(hosts: list[str], *, progress=None) -> list[Finding]:
+    """Run the SMBv1 / signing check across many hosts in parallel."""
+    import concurrent.futures
+
+    findings: list[Finding] = []
+
+    def work(host: str) -> list[Finding]:
+        if progress:
+            progress(host)
+        return check_smb(host)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        for res in pool.map(work, hosts):
+            findings.extend(res)
+    return findings
+
+
+# Heuristic version-based hints. These are NOT a vulnerability scan — they flag
+# well-known risky software versions worth a closer look, keyed by a substring
+# match against nmap's service/version banner.
+VERSION_HINTS: list[tuple[str, Severity, str]] = [
+    ("vsftpd 2.3.4", Severity.CRITICAL, "vsftpd 2.3.4 shipped with a backdoor (CVE-2011-2523)."),
+    ("OpenSSH 7.", Severity.LOW, "Older OpenSSH 7.x — review for known CVEs and update."),
+    ("OpenSSH 6.", Severity.MEDIUM, "OpenSSH 6.x is end-of-life; upgrade."),
+    ("OpenSSH 5.", Severity.MEDIUM, "OpenSSH 5.x is end-of-life; upgrade."),
+    ("Apache/2.2", Severity.MEDIUM, "Apache 2.2 is end-of-life; upgrade to 2.4+."),
+    ("Apache/2.0", Severity.HIGH, "Apache 2.0 is long end-of-life; upgrade."),
+    ("nginx/1.0", Severity.MEDIUM, "Very old nginx; upgrade."),
+    ("ProFTPD 1.3.3", Severity.HIGH, "ProFTPD 1.3.3c had a backdoor (CVE-2010-3867)."),
+    ("Microsoft IIS/6.0", Severity.HIGH, "IIS 6.0 (Server 2003) is unsupported; CVE-2017-7269."),
+    ("Microsoft IIS/7.", Severity.LOW, "IIS 7.x is dated; confirm patch level."),
+    ("Exim 4.8", Severity.HIGH, "Old Exim 4.8x has critical RCEs (e.g. CVE-2019-10149)."),
+    ("Samba 3.", Severity.HIGH, "Samba 3.x is end-of-life (SambaCry/CVE-2017-7494 era)."),
+    ("Samba 4.0", Severity.MEDIUM, "Early Samba 4.0; review and update."),
+    ("PHP/5.", Severity.MEDIUM, "PHP 5.x is end-of-life; upgrade."),
+    ("MySQL 5.0", Severity.MEDIUM, "MySQL 5.0 is end-of-life."),
+    ("OpenSSL/1.0", Severity.MEDIUM, "OpenSSL 1.0.x is end-of-life (Heartbleed era)."),
+]
+
+
+def evaluate_versions(host: str, open_ports) -> list[Finding]:
+    """Flag risky software versions in scanned service banners (heuristic)."""
+    findings: list[Finding] = []
+    for op in open_ports:
+        banner = f"{op.service} {op.version}".strip()
+        if not banner:
+            continue
+        for needle, sev, note in VERSION_HINTS:
+            if needle.lower() in banner.lower():
+                findings.append(Finding(
+                    title=f"Outdated software: {needle} (port {op.port})",
+                    severity=sev, target=host,
+                    detail=f"Detected '{banner}' on {host}:{op.port}.",
+                    recommendation=note,
+                ))
+    return findings

@@ -51,7 +51,7 @@ class Assessment:
 
 def build(*, netctx=None, hosts=None, dc_statuses=None, share_results=None,
           printers=None, wifi=None, security_findings=None,
-          latency=None) -> Assessment:
+          latency=None, baseline_diff=None) -> Assessment:
     """Assemble an :class:`Assessment` from whatever results are available.
 
     Every argument is optional; the engine only comments on data it was given,
@@ -175,6 +175,25 @@ def build(*, netctx=None, hosts=None, dc_statuses=None, share_results=None,
         if not crit and not med:
             a.add("No high/medium security findings in what was scanned.",
                   Priority.DONE, "security")
+
+    # --- Baseline / change detection --------------------------------------
+    if baseline_diff is not None and baseline_diff.had_baseline:
+        if baseline_diff.new_hosts:
+            a.add(f"{len(baseline_diff.new_hosts)} NEW host(s) since baseline — "
+                  "verify they are authorised, not rogue devices.",
+                  Priority.URGENT, "inventory")
+            penalty += 8 * min(len(baseline_diff.new_hosts), 3)
+        if baseline_diff.changed_hosts:
+            a.add(f"{len(baseline_diff.changed_hosts)} host(s) changed "
+                  "IP/MAC/name since baseline — possible spoofing or swaps.",
+                  Priority.IMPORTANT, "inventory")
+        if baseline_diff.missing_hosts:
+            a.add(f"{len(baseline_diff.missing_hosts)} host(s) from baseline are "
+                  "missing — confirm expected downtime.", Priority.SUGGESTED,
+                  "inventory")
+        if baseline_diff.clean:
+            a.add("Inventory matches the saved baseline — no changes.",
+                  Priority.DONE, "inventory")
 
     if not a.recommendations:
         a.add("Run a discovery scan to populate the dashboard.",

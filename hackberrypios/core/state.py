@@ -14,8 +14,9 @@ from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import datetime
 from enum import Enum
 
-from . import (dc, discovery, netinfo, ports, printers, recommendations,
-               security, shares, speedtest, wifi)
+from . import (baseline, dc, dhcp, discovery, netinfo, ports, printers,
+               profiles, recommendations, report, security, shares, speedtest,
+               timecheck, tlscheck, wifi)
 
 
 @dataclass
@@ -31,6 +32,12 @@ class AppState:
     gateway_latency: speedtest.LatencyResult | None = None
     domain: str = ""
     last_assessment: recommendations.Assessment | None = None
+    # v1.1 additions
+    profile: profiles.Profile | None = None
+    baseline_diff: baseline.BaselineDiff | None = None
+    tls_results: dict[str, tlscheck.TlsResult] = field(default_factory=dict)
+    ntp_result: timecheck.TimeResult | None = None
+    dhcp_result: dhcp.DhcpResult | None = None
 
     # ------------------------------------------------------------------ #
     # Orchestrated scans
@@ -89,6 +96,8 @@ class AppState:
         self.port_scans[target] = result
         self.security_findings += security.evaluate_ports(
             target, result.open_ports)
+        self.security_findings += security.evaluate_versions(
+            target, result.open_ports)
         self._dedup_findings()
         return result
 
@@ -107,6 +116,98 @@ class AppState:
         self.gateway_latency = speedtest.latency(gw)
         return self.gateway_latency
 
+    # ------------------------------------------------------------------ #
+    # v1.1 — profiles, baseline, extra checks, reports
+    # ------------------------------------------------------------------ #
+    def apply_profile(self, profile: profiles.Profile) -> None:
+        """Adopt a site profile's context (domain, etc.) into the session."""
+        self.profile = profile
+        if profile.domain:
+            self.domain = profile.domain
+
+    def save_baseline(self) -> str | None:
+        if not self.profile:
+            return None
+        return baseline.save(self.profile.name, self.hosts)
+
+    def compare_baseline(self) -> baseline.BaselineDiff | None:
+        if not self.profile:
+            return None
+        self.baseline_diff = baseline.compare(self.profile.name, self.hosts)
+        return self.baseline_diff
+
+    def run_tls(self, host: str, port: int = 443) -> tlscheck.TlsResult:
+        result = tlscheck.inspect(host, port)
+        self.tls_results[f"{host}:{port}"] = result
+        for issue in result.issues:
+            sev = (security.Severity.HIGH if "expired" in issue
+                   else security.Severity.MEDIUM)
+            self.security_findings.append(security.Finding(
+                title=f"TLS: {issue}", severity=sev, target=f"{host}:{port}",
+                detail=f"{result.subject or host} / {result.protocol}",
+                recommendation="Renew/replace the certificate or disable the "
+                               "obsolete protocol."))
+        self._dedup_findings()
+        return result
+
+    def run_ntp(self, host: str | None = None) -> timecheck.TimeResult | None:
+        target = host or (self.profile.ntp_server if self.profile else "") \
+            or (self.dc_statuses[0].host if self.dc_statuses else "") \
+            or self.gateway()
+        if not target:
+            return None
+        self.ntp_result = timecheck.query(target)
+        r = self.ntp_result
+        if r and not r.error and not r.within_kerberos_skew:
+            self.security_findings.append(security.Finding(
+                title="Clock skew exceeds Kerberos tolerance",
+                severity=security.Severity.HIGH, target=target,
+                detail=f"Local clock differs by {r.offset_seconds:.1f}s from "
+                       f"{target} (limit {timecheck.KERBEROS_SKEW_LIMIT:.0f}s).",
+                recommendation="Sync time (NTP). >5 min skew breaks Kerberos/AD "
+                               "logons."))
+            self._dedup_findings()
+        return self.ntp_result
+
+    def run_dhcp(self) -> dhcp.DhcpResult:
+        iface = self.netctx.primary.name if (self.netctx and self.netctx.primary) \
+            else None
+        self.dhcp_result = dhcp.discover(interface=iface)
+        if self.dhcp_result.rogue_suspected:
+            self.security_findings.append(security.Finding(
+                title="Multiple DHCP servers responding",
+                severity=security.Severity.HIGH,
+                target=", ".join(self.dhcp_result.server_ips),
+                detail="More than one DHCP server answered a broadcast DISCOVER.",
+                recommendation="Identify the unsanctioned (rogue) DHCP server "
+                               "and remove it."))
+            self._dedup_findings()
+        return self.dhcp_result
+
+    def run_smb_sweep(self, *, progress=None) -> list[security.Finding]:
+        targets = self.host_ips() or self._fallback_hosts()
+        findings = security.sweep_smb(targets, progress=progress)
+        self.security_findings += findings
+        self._dedup_findings()
+        return findings
+
+    def run_os_fingerprint(self, *, progress=None) -> list[discovery.Host]:
+        discovery.os_fingerprint(self.hosts, progress=progress)
+        return self.hosts
+
+    def gateway(self) -> str:
+        if self.netctx is None:
+            self.refresh_netinfo()
+        return self.netctx.gateway if self.netctx else ""
+
+    def export_html_report(self, path: str) -> str:
+        name = self.profile.name if self.profile else ""
+        return report.write_html(self, path, profile_name=name)
+
+    def export_pdf_report(self, path: str) -> tuple[bool, str]:
+        name = self.profile.name if self.profile else ""
+        return report.write_pdf(self, path, profile_name=name)
+
     def assess(self) -> recommendations.Assessment:
         self.last_assessment = recommendations.build(
             netctx=self.netctx,
@@ -117,6 +218,7 @@ class AppState:
             wifi=self.wifi,
             security_findings=self.security_findings or None,
             latency=self.gateway_latency,
+            baseline_diff=self.baseline_diff,
         )
         return self.last_assessment
 

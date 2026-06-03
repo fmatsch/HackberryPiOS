@@ -5,5 +5,5 @@ square display. All scanning logic lives in :mod:`hackberrypios.core` and is
 deliberately decoupled from the UI so it can also be scripted from the CLI.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __app_name__ = "HackberryPiOS"

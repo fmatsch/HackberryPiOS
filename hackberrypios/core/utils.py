@@ -49,8 +49,11 @@ TOOLS: dict[str, str] = {
     "host": "dnsutils",
     "iperf3": "iperf3",
     "curl": "curl",
+    "openssl": "openssl",
     "rpcclient": "smbclient",
     "ntpdate": "ntpdate",
+    "ldapsearch": "ldap-utils",
+    "wkhtmltopdf": "wkhtmltopdf",
 }
 
 
@@ -71,6 +74,7 @@ def run(
     timeout: int = 30,
     needs: str | None = None,
     sudo: bool = False,
+    input_text: str | None = None,
 ) -> CommandResult:
     """Run *args* and capture output.
 
@@ -82,6 +86,8 @@ def run(
     sudo:
         Prefix with ``sudo -n`` (non-interactive). Falls back silently to the
         unprivileged call if sudo is unavailable.
+    input_text:
+        Optional text piped to the command's standard input.
     """
     tool = needs or (args[0] if args else "")
     if tool and not have(tool):
@@ -97,6 +103,7 @@ def run(
     try:
         proc = subprocess.run(
             cmd,
+            input=input_text,
             capture_output=True,
             text=True,
             timeout=timeout,

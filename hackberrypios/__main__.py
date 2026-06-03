@@ -14,10 +14,20 @@ from . import __app_name__, __version__
 
 
 def _cli(args: argparse.Namespace) -> int:
+    from .core import profiles as profiles_mod
     from .core.state import AppState
 
     state = AppState()
     print(f"{__app_name__} {__version__} — headless sweep\n")
+
+    if args.profile:
+        prof = profiles_mod.load(args.profile)
+        if prof:
+            state.apply_profile(prof)
+            print(f"Profile   : {prof.name} (domain {prof.domain or '—'})")
+        else:
+            print(f"Profile   : '{args.profile}' not found "
+                  f"(available: {', '.join(profiles_mod.list_profiles()) or 'none'})")
 
     ctx = state.refresh_netinfo()
     if not ctx.primary:
@@ -50,6 +60,14 @@ def _cli(args: argparse.Namespace) -> int:
     print("Testing gateway latency…")
     state.run_gateway_latency()
 
+    print("Checking clock skew (NTP)…")
+    state.run_ntp()
+
+    if state.profile:
+        diff = state.compare_baseline()
+        if diff and diff.had_baseline:
+            print(f"Baseline  : {diff.summary}")
+
     assessment = state.assess()
     print(f"\nNetwork health score: {assessment.score}/100\n")
     print("Top recommendations:")
@@ -58,8 +76,11 @@ def _cli(args: argparse.Namespace) -> int:
 
     if args.json:
         state.export_json(args.json)
-        print(f"\nReport written to {args.json}")
-    elif args.print_json:
+        print(f"\nJSON report written to {args.json}")
+    if args.html:
+        state.export_html_report(args.html)
+        print(f"HTML report written to {args.html}")
+    if args.print_json:
         print("\n" + json.dumps(state.to_report(), indent=2))
     return 0
 
@@ -73,8 +94,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--cli", action="store_true",
                         help="run a headless full sweep instead of the UI")
     parser.add_argument("--domain", help="AD domain to check (CLI mode)")
+    parser.add_argument("--profile", metavar="NAME",
+                        help="load a saved site profile (CLI mode)")
     parser.add_argument("--json", metavar="PATH",
                         help="write JSON report to PATH (CLI mode)")
+    parser.add_argument("--html", metavar="PATH",
+                        help="write HTML report to PATH (CLI mode)")
     parser.add_argument("--print-json", action="store_true",
                         help="print JSON report to stdout (CLI mode)")
     args = parser.parse_args(argv)

@@ -16,7 +16,8 @@ import re
 import socket
 from dataclasses import dataclass, field
 
-from .utils import find_ipv4, have, humanise_mac_vendor, run
+from . import oui
+from .utils import find_ipv4, have, run
 
 
 @dataclass
@@ -25,6 +26,7 @@ class Host:
     mac: str | None = None
     name: str | None = None
     vendor: str | None = None
+    os: str = ""               # populated by os_fingerprint()
     source: str = ""           # how it was discovered
     tags: list[str] = field(default_factory=list)
 
@@ -32,6 +34,7 @@ class Host:
         self.mac = self.mac or other.mac
         self.name = self.name or other.name
         self.vendor = self.vendor or other.vendor
+        self.os = self.os or other.os
         for t in other.tags:
             if t not in self.tags:
                 self.tags.append(t)
@@ -73,7 +76,7 @@ def _arp_scan(cidr: str) -> list[Host]:
             mac = parts[1]
             vendor = " ".join(parts[2:]) if len(parts) > 2 else None
             hosts.append(Host(ip=parts[0], mac=mac.lower(),
-                              vendor=vendor or humanise_mac_vendor(mac) or None,
+                              vendor=vendor or oui.lookup(mac) or None,
                               source="arp-scan"))
     return hosts
 
@@ -95,7 +98,7 @@ def _nmap_ping(cidr: str) -> list[Host]:
             hosts[-1].mac = mac_m.group(1).lower()
             vendor = mac_m.group(2)
             hosts[-1].vendor = (vendor if vendor and vendor != "Unknown"
-                                else humanise_mac_vendor(mac_m.group(1)) or None)
+                                else oui.lookup(mac_m.group(1)) or None)
     return hosts
 
 
@@ -106,7 +109,7 @@ def _ip_neigh() -> list[Host]:
         m = re.match(r"([\d.]+)\s+dev\s+\S+\s+lladdr\s+([0-9a-f:]{17})", line)
         if m and "FAILED" not in line:
             hosts.append(Host(ip=m.group(1), mac=m.group(2).lower(),
-                              vendor=humanise_mac_vendor(m.group(2)) or None,
+                              vendor=oui.lookup(m.group(2)) or None,
                               source="arp-cache"))
     return hosts
 
@@ -162,3 +165,29 @@ def _resolve_names(hosts: list[Host]) -> None:
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
         pool.map(resolve, hosts)
+
+
+def os_fingerprint(hosts: list[Host], *, progress=None) -> list[Host]:
+    """Populate ``Host.os`` via nmap OS detection (``-O``; needs root).
+
+    Mutates and returns the same list. Hosts are probed one at a time so the UI
+    can report progress; this is inherently slow, so it's an explicit action
+    rather than part of the default discovery sweep.
+    """
+    if not have("nmap"):
+        return hosts
+    for host in hosts:
+        if progress:
+            progress(host.ip)
+        res = run(["nmap", "-O", "--osscan-guess", "-Pn", host.ip],
+                  timeout=60, sudo=True)
+        if not res.stdout:
+            continue
+        m = re.search(r"Running:\s*(.+)", res.stdout)
+        if not m:
+            m = re.search(r"OS details:\s*(.+)", res.stdout)
+        if not m:
+            m = re.search(r"Aggressive OS guesses:\s*([^,\n]+)", res.stdout)
+        if m:
+            host.os = m.group(1).strip()
+    return hosts

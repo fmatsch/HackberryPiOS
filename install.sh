@@ -17,7 +17,8 @@ SKIP_APT=0
 # External tools that power the scans. All are in the Raspberry Pi OS repos.
 APT_PACKAGES=(
   nmap arp-scan smbclient samba-common-bin avahi-utils
-  iw network-manager iproute2 dnsutils iperf3 curl
+  iw network-manager iproute2 dnsutils iperf3 curl openssl
+  ldap-utils wkhtmltopdf
 )
 
 say() { printf '\033[1;32m==>\033[0m %s\n' "$*"; }

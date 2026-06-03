@@ -193,3 +193,66 @@ def survey() -> WifiSurvey:
         return _iw_survey(iface)
     return WifiSurvey(interface=iface,
                       error="no Wi-Fi tooling (nmcli/iw) or no wireless interface")
+
+
+# Non-overlapping 2.4 GHz channels.
+_NON_OVERLAP_24 = [1, 6, 11]
+
+
+@dataclass
+class ChannelAdvice:
+    counts_24: dict[int, int] = field(default_factory=dict)   # channel -> AP count
+    counts_5: dict[int, int] = field(default_factory=dict)
+    best_24: int | None = None
+    best_5: int | None = None
+    current_channel: str = ""
+    notes: list[str] = field(default_factory=list)
+
+
+def analyse_channels(survey: WifiSurvey) -> ChannelAdvice:
+    """Recommend the least congested channel from a completed survey.
+
+    For 2.4 GHz we only consider the non-overlapping channels 1/6/11 and weight
+    by how many APs sit on or adjacent to each. For 5 GHz we pick the least used
+    seen channel.
+    """
+    advice = ChannelAdvice()
+    for ap in survey.access_points:
+        try:
+            ch = int(ap.channel)
+        except (ValueError, TypeError):
+            continue
+        if 1 <= ch <= 14:
+            advice.counts_24[ch] = advice.counts_24.get(ch, 0) + 1
+        elif ch >= 32:
+            advice.counts_5[ch] = advice.counts_5.get(ch, 0) + 1
+        if ap.in_use:
+            advice.current_channel = ap.channel
+
+    if advice.counts_24 or any(1 <= int(a.channel or 0) <= 14
+                               for a in survey.access_points
+                               if (a.channel or "").isdigit()):
+        # Weighted load for each non-overlapping channel (adjacent channels
+        # within ±2 interfere on 2.4 GHz).
+        load = {}
+        for cand in _NON_OVERLAP_24:
+            load[cand] = sum(cnt for ch, cnt in advice.counts_24.items()
+                             if abs(ch - cand) <= 2)
+        advice.best_24 = min(load, key=load.get)
+        advice.notes.append(
+            f"2.4 GHz: least congested non-overlapping channel is "
+            f"{advice.best_24} ({load[advice.best_24]} nearby AP(s)).")
+
+    if advice.counts_5:
+        # Prefer a clean channel not currently used by anyone.
+        used = set(advice.counts_5)
+        advice.best_5 = min(advice.counts_5, key=advice.counts_5.get)
+        advice.notes.append(
+            f"5 GHz: channel {advice.best_5} is the least used of those in range "
+            f"({advice.counts_5[advice.best_5]} AP(s)). Consider any unused DFS "
+            f"channel for more headroom.")
+
+    if not advice.notes:
+        advice.notes.append("Not enough APs in range to make a channel "
+                            "recommendation.")
+    return advice

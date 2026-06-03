@@ -22,13 +22,30 @@ A compact summary card (host/interface/subnet/gateway/DNS/domain), a 0–100
 The score starts at 100 and is reduced by issues found (unreachable DCs,
 anonymous shares, weak Wi-Fi, high-severity findings, packet loss, …).
 
+### Site
+Manages everything that makes repeat visits fast.
+
+- **Profiles** — save per-network context (name, AD domain, subnet, NTP server,
+  optional SMB username, notes). Pick a saved profile from the dropdown to load
+  it, then **Apply** to push the domain/subnet/username into the other tabs.
+  Passwords are never stored.
+- **Baseline** — **Save baseline** records the currently discovered hosts for
+  the active profile. On a later visit, **Compare** shows what changed:
+  **NEW** (possible rogue device), **MISSING**, or **CHANGED** (IP/MAC/name).
+- **Report** — **Export HTML** (always) or **Export PDF** (if `wkhtmltopdf` is
+  installed) writes a styled, self-contained report to your home folder.
+
 ### Hosts
 Discovers live hosts on the local subnet.
 
 - Leave the input empty to auto-use the detected CIDR, or type a specific
   range like `10.0.5.0/24`.
 - Discovery tries `arp-scan` (fastest, gives MAC + vendor), then `nmap -sn`,
-  then the passive ARP cache. Names are resolved via reverse DNS and NetBIOS.
+  then the passive ARP cache. Names are resolved via reverse DNS and NetBIOS;
+  vendors via nmap's full OUI database when available.
+- **OS scan** runs nmap OS detection (`-O`, needs root; slow) and fills the OS
+  column.
+- Type in the **filter** box to narrow the table by IP, name, vendor or OS.
 - **Select a row** to pre-fill the **Ports** and **Sec** tabs with that host.
 
 ### Ports
@@ -64,6 +81,11 @@ Surveys nearby access points (SSID, signal %, channel, band, security) and
 reports your current link quality. Open and WEP/WPA1 networks are highlighted
 in red and raised as security findings.
 
+- **Channels** analyses congestion and recommends the least-used 2.4 GHz
+  (1/6/11) and 5 GHz channel.
+- **Live** toggles a continuous re-survey (every few seconds) — handy as a
+  signal meter while you walk a site. Press again to stop.
+
 ### Speed
 - **LAN ping** — RTT min/avg/max, jitter and packet loss to the gateway, with
   a quality verdict.
@@ -72,15 +94,27 @@ in red and raised as security findings.
 
 ### Sec
 Aggregated, severity-sorted security findings from every scan (risky open
-services, anonymous shares, weak Wi-Fi). The **SMB check** button runs deeper
-nmap NSE checks (SMBv1 dialect, SMB signing) against a specific host.
+services, version-based CVE hints, anonymous shares, weak Wi-Fi). Type in the
+**filter** box to narrow the findings. Buttons:
+
+- **TLS** — inspect the certificate at `host[:port]` (default 443): expiry/days
+  left, protocol, cipher; flags expired/soon-expiring, self-signed and obsolete
+  protocols. Works for HTTPS, LDAPS (`dc:636`), etc.
+- **SMB** — deep nmap NSE check (SMBv1 dialect, SMB signing) on one host.
+- **NTP skew** — compares the local clock against the target / profile NTP
+  server / a DC, and flags drift beyond the 5-minute Kerberos tolerance.
+- **Rogue DHCP** — broadcasts a DHCP DISCOVER and lists every responding server
+  (more than one = investigate). Needs root.
+- **SMBv1 sweep** — runs the SMBv1/signing check across all discovered hosts.
 
 ## Reports
 
-`e` in the UI, or `--json PATH` in CLI mode, writes a complete JSON report:
-network context, hosts, DCs, shares, printers, Wi-Fi, port scans, findings,
-and the scored recommendations. Use it for documentation, diffing over time,
-or feeding into other tooling (`--print-json | jq`).
+- **HTML/PDF** — the Site tab (or `--html PATH` in CLI mode) writes a styled,
+  shareable report: score, network, recommendations, baseline diff, hosts, DCs,
+  shares, printers, Wi-Fi and findings.
+- **JSON** — `e` in the UI, or `--json PATH` in CLI mode, writes the complete
+  machine-readable report for diffing over time or feeding other tooling
+  (`--print-json | jq`).
 
 ## Tips
 

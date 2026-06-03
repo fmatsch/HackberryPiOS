@@ -130,12 +130,16 @@
 <section id="features">
   <div class="wrap">
     <h2>Everything in one place</h2>
-    <p class="sub">Nine focused tools, one keyboard-driven dashboard, zero agents on your targets.</p>
+    <p class="sub">A toolbox of focused scanners, one keyboard-driven dashboard, zero agents on your targets.</p>
     <div class="grid">
       <div class="card"><div class="ico">🩺</div><h3>Network health score</h3>
         <p>A 0–100 score and a colour-coded, prioritised action list — your instant overview the moment you connect.</p></div>
       <div class="card"><div class="ico">🖥️</div><h3>Host discovery</h3>
-        <p>Find every device by IP, name, MAC and vendor using <code>arp-scan</code> → <code>nmap</code> → ARP cache, with reverse-DNS and NetBIOS name resolution.</p></div>
+        <p>Find every device by IP, name, MAC, full-OUI vendor and OS fingerprint using <code>arp-scan</code> → <code>nmap</code> → ARP cache, with reverse-DNS and NetBIOS name resolution and live filtering.</p></div>
+      <div class="card"><div class="ico">📂</div><h3>Site profiles</h3>
+        <p>Save each network's context — AD domain, subnet, NTP server, notes. Arrive on site and it's "load profile → scan". Passwords are never stored.</p></div>
+      <div class="card"><div class="ico">🧭</div><h3>Baseline &amp; change detection</h3>
+        <p>Save the host set, then diff on your next visit: <b>new</b> (rogue?), <b>missing</b> and <b>changed</b> devices — at a glance.</p></div>
       <div class="card"><div class="ico">🏛️</div><h3>Domain Controller checks</h3>
         <p>Locate DCs via AD's DNS SRV records and health-check Kerberos, LDAP/LDAPS, SMB and the Global Catalog with latency.</p></div>
       <div class="card"><div class="ico">📁</div><h3>Shared drives (SMB)</h3>
@@ -144,12 +148,14 @@
         <p>Fast top-ports or full scans with service/version detection. Pure-Python fallback when nmap isn't installed.</p></div>
       <div class="card"><div class="ico">🖨️</div><h3>Printer discovery</h3>
         <p>Find printers via mDNS/Bonjour and by probing IPP, LPD and raw JetDirect ports across the subnet.</p></div>
-      <div class="card"><div class="ico">📶</div><h3>Wi-Fi survey</h3>
-        <p>Nearby APs with signal, channel, band and security; current link quality. Open and WEP/WPA1 networks are flagged.</p></div>
+      <div class="card"><div class="ico">📶</div><h3>Wi-Fi survey &amp; channels</h3>
+        <p>Nearby APs with signal, channel, band and security; channel-congestion advice; a live site-survey mode; current link quality. Open and WEP/WPA1 networks are flagged.</p></div>
       <div class="card"><div class="ico">⚡</div><h3>Speed &amp; latency</h3>
         <p>Gateway RTT/jitter/loss, iperf3 LAN throughput, and a quick WAN download sanity check.</p></div>
       <div class="card"><div class="ico">🛡️</div><h3>Security posture</h3>
-        <p>SMBv1 / SMB-signing checks, risky cleartext services, weak Wi-Fi — aggregated, severity-sorted findings.</p></div>
+        <p>SMBv1/signing (per host or subnet sweep), TLS/certificate checks, NTP clock-skew, rogue-DHCP detection, version-based CVE hints — severity-sorted.</p></div>
+      <div class="card"><div class="ico">📄</div><h3>HTML / PDF reports</h3>
+        <p>One click produces a styled, self-contained report — score, recommendations, baseline diff and every result — to hand to a client or colleague.</p></div>
     </div>
   </div>
 </section>
@@ -162,15 +168,17 @@
       <figure><img src="screenshots/01-dashboard.svg" alt="Dashboard">
         <figcaption><b>Home dashboard</b><span>Health score + prioritised recommendations, refreshed after every scan.</span></figcaption></figure>
       <figure><img src="screenshots/02-hosts.svg" alt="Hosts">
-        <figcaption><b>Hosts</b><span>IP, name, MAC and vendor for every discovered device.</span></figcaption></figure>
+        <figcaption><b>Hosts</b><span>IP, name, MAC, vendor and OS for every discovered device, with live filtering.</span></figcaption></figure>
+      <figure><img src="screenshots/09-site.svg" alt="Site profiles">
+        <figcaption><b>Site profiles</b><span>Per-network context, baselines and report export — built for repeat visits.</span></figcaption></figure>
       <figure><img src="screenshots/04-domain-controllers.svg" alt="Domain controllers">
         <figcaption><b>DC / AD</b><span>Located via SRV records, health-checked across the AD port set.</span></figcaption></figure>
       <figure><img src="screenshots/03-shares.svg" alt="SMB shares">
         <figcaption><b>Shares</b><span>Anonymous-readable shares highlighted in red.</span></figcaption></figure>
       <figure><img src="screenshots/05-wifi.svg" alt="Wi-Fi survey">
-        <figcaption><b>Wi-Fi</b><span>APs ranked by signal; open &amp; weak crypto flagged.</span></figcaption></figure>
+        <figcaption><b>Wi-Fi</b><span>APs ranked by signal with channel-congestion advice; open &amp; weak crypto flagged.</span></figcaption></figure>
       <figure><img src="screenshots/06-security.svg" alt="Security findings">
-        <figcaption><b>Security</b><span>Severity-sorted findings aggregated from all scans.</span></figcaption></figure>
+        <figcaption><b>Security</b><span>TLS, clock-skew, rogue-DHCP, CVE hints &amp; more — severity-sorted with fixes.</span></figcaption></figure>
       <figure><img src="screenshots/07-printers.svg" alt="Printers">
         <figcaption><b>Printers</b><span>Discovered via mDNS and printing-port probes.</span></figcaption></figure>
       <figure><img src="screenshots/08-speed.svg" alt="Speed test">

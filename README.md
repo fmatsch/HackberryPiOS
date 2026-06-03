@@ -20,20 +20,31 @@ agents on the targets.
 | Capability | Tab | Details |
 |---|---|---|
 | **Local network context** | Home | Interface, IP/CIDR, gateway, DNS, hostname, detected AD domain |
+| **Site profiles** | Site | Save per-network context (domain, subnet, NTP, notes) — load on arrival |
+| **Baseline & change detection** | Site | Save the host set, then diff on the next visit: **new / missing / changed** devices (rogue detection) |
+| **HTML / PDF reports** | Site | One-click styled report for clients/colleagues |
 | **Domain Controller checks** | DC/AD | Locate DCs via DNS SRV records, health-check Kerberos/LDAP/SMB/GC, latency |
-| **Host discovery** | Hosts | IP + name (rDNS/NetBIOS) + MAC + vendor, via arp-scan → nmap → ARP cache |
+| **Host discovery** | Hosts | IP + name (rDNS/NetBIOS) + MAC + **full OUI vendor** + **OS fingerprint**, via arp-scan → nmap → ARP cache; live **filter** |
 | **Port scanning** | Ports | Fast (top ports) or full scan, service/version detection (nmap) |
 | **Shared drives (SMB)** | Shares | Enumerate shares per host; flags **anonymous/guest-readable** shares |
 | **Printer discovery** | Print | mDNS/Bonjour + IPP/LPD/JetDirect port probes |
-| **Security posture** | Sec | SMBv1 / SMB-signing checks, risky services, weak Wi-Fi, aggregated findings |
+| **Security posture** | Sec | SMBv1/signing (single host + **subnet sweep**), **TLS/cert** check, **NTP/clock-skew**, **rogue-DHCP**, risky services, **version-based CVE hints**, weak Wi-Fi |
 | **Speed & latency** | Speed | Gateway RTT/jitter/loss, iperf3 LAN throughput, WAN download |
-| **Wi-Fi survey** | Wi-Fi | Nearby APs (signal, channel, band, security), current link quality |
-| **Health score + actions** | Home | 0–100 score and a prioritised recommendation list |
+| **Wi-Fi survey** | Wi-Fi | Nearby APs (signal, channel, band, security), **channel-congestion advice**, **live site-survey** mode, current link quality |
+| **Health score + actions** | Home | 0–100 score and a prioritised recommendation list; battery & CPU temp in the header |
 
 The **recommendation engine** ties it together: after each scan it re-evaluates
 everything gathered so far and tells you, in plain language, what deserves
 attention — unreachable DCs, anonymous shares, open Wi-Fi, weak crypto,
-unmanaged hosts, congested links, and so on.
+unmanaged/new hosts, clock skew, expiring certificates, congested channels, and
+so on.
+
+### Built for repeat visits
+
+The **Site** tab is what turns this from a scanner into a workflow: save a
+profile per client network, hit **Scan all** on arrival, then **Compare** against
+the baseline you saved last time. New unknown devices are surfaced immediately
+(rogue-device detection), and a styled HTML/PDF report documents the visit.
 
 ---
 
@@ -117,7 +128,9 @@ Great over SSH or for scripted/scheduled audits:
 ```bash
 hackberrypios --cli                       # full sweep, prints score + actions
 hackberrypios --cli --domain corp.example.com
+hackberrypios --cli --profile "Acme HQ"   # load a saved site profile + baseline
 hackberrypios --cli --json report.json    # also write a full JSON report
+hackberrypios --cli --html report.html    # write a styled HTML report
 hackberrypios --cli --print-json | jq .   # pipe JSON to other tools
 ```
 
@@ -140,6 +153,12 @@ gracefully** with a clear message if something is missing.
 | `dig`/`host` | `dnsutils` | AD DC discovery via DNS SRV records |
 | `iperf3` | `iperf3` | LAN throughput testing |
 | `ping`, `curl` | `iputils-ping`, `curl` | Latency and WAN tests |
+| `openssl` | `openssl` | TLS / certificate inspection |
+| `ldapsearch` | `ldap-utils` | LDAP RootDSE (DC naming context) — optional |
+| `wkhtmltopdf` | `wkhtmltopdf` | PDF report export — optional (HTML works without it) |
+
+Full MAC-vendor resolution reuses nmap's `nmap-mac-prefixes` database when
+present; the NTP clock-skew check needs no external tool at all (raw SNTP).
 
 The **Home** dashboard surfaces any missing tools so you know what to install.
 
@@ -155,14 +174,22 @@ hackberrypios/
 └── core/                # UI-agnostic scanning logic
     ├── utils.py         # command runner, tool detection, parsers
     ├── netinfo.py       # interfaces / gateway / DNS context
-    ├── discovery.py     # host discovery + name resolution
+    ├── sysinfo.py       # battery / CPU temperature (header)
+    ├── discovery.py     # host discovery + name resolution + OS fingerprint
+    ├── oui.py           # full MAC-vendor lookup (nmap DB + fallback)
     ├── ports.py         # nmap + pure-Python port scanner
     ├── shares.py        # SMB share enumeration
     ├── dc.py            # Domain Controller location & health
     ├── printers.py      # printer discovery
-    ├── wifi.py          # Wi-Fi survey
+    ├── wifi.py          # Wi-Fi survey + channel analysis
     ├── speedtest.py     # latency / iperf3 / WAN throughput
-    ├── security.py      # findings + severity model
+    ├── tlscheck.py      # TLS / certificate inspection
+    ├── timecheck.py     # NTP / Kerberos clock-skew check
+    ├── dhcp.py          # rogue-DHCP detection
+    ├── security.py      # findings + severity + CVE hints + SMB sweep
+    ├── profiles.py      # per-site profiles
+    ├── baseline.py      # baseline save + change detection
+    ├── report.py        # HTML / PDF report generation
     ├── recommendations.py  # scoring + prioritised advice
     └── state.py         # shared state + scan orchestration + export
 ```
