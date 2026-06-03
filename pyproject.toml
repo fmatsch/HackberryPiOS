@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hackberrypios"
+version = "1.0.0"
+description = "One-stop network audit toolkit for the HackberryPi CM5"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "HackberryPiOS contributors" }]
+keywords = ["network", "audit", "smb", "active-directory", "raspberry-pi", "tui"]
+dependencies = [
+    "textual>=0.58.0",
+    "rich>=13.7.0",
+]
+
+[project.urls]
+Documentation = "https://github.com/fmatsch/HackberryPiOS/blob/main/README.md"
+
+[project.scripts]
+hackberrypios = "hackberrypios.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["hackberrypios*"]
+
+[tool.setuptools.package-data]
+hackberrypios = ["*.tcss"]

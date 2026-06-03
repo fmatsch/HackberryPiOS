@@ -1,0 +1,94 @@
+/* HackberryPiOS — layout tuned for the HackberryPi's small square display.
+   Keep paddings tight; favour vertical scrolling over wide rows. */
+
+Screen {
+    background: $surface;
+}
+
+Header {
+    background: $primary-darken-2;
+    color: $text;
+}
+
+Footer {
+    background: $panel;
+}
+
+TabbedContent {
+    height: 1fr;
+}
+
+Tabs {
+    background: $panel;
+}
+
+/* Generic content wrapper inside each tab */
+.pane {
+    padding: 0 1;
+    height: 1fr;
+}
+
+.toolbar {
+    height: auto;
+    padding: 0 0 1 0;
+    align-vertical: middle;
+}
+
+.toolbar Input {
+    width: 1fr;
+    margin: 0 1 0 0;
+}
+
+.toolbar Button {
+    min-width: 8;
+    height: 3;
+}
+
+.status {
+    height: auto;
+    color: $text-muted;
+    padding: 0 0 1 0;
+}
+
+DataTable {
+    height: 1fr;
+}
+
+/* ---- Dashboard ---- */
+#dash-grid {
+    layout: grid;
+    grid-size: 2;
+    grid-columns: 1fr 1fr;
+    grid-rows: auto;
+    height: auto;
+}
+
+.card {
+    border: round $primary;
+    padding: 0 1;
+    margin: 0 1 1 0;
+    height: auto;
+}
+
+.card-title {
+    text-style: bold;
+    color: $secondary;
+}
+
+#score-box {
+    border: round $success;
+    padding: 0 1;
+    height: auto;
+    content-align: center middle;
+}
+
+#reco-list {
+    height: 1fr;
+    border: round $accent;
+    padding: 0 1;
+}
+
+/* severity / priority colour helpers used via Rich markup in widgets */
+.ok { color: $success; }
+.warn { color: $warning; }
+.bad { color: $error; }

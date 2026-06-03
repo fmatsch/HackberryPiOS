@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environment created by install.sh
+.venv/
+venv/
+
+# Exported reports
+hackberrypios-report-*.json
+
+# Editor / OS cruft
+.vscode/
+.idea/
+.DS_Store
+
+# Local Claude Code settings (machine-specific)
+.claude/settings.local.json

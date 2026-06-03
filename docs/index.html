@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HackberryPiOS — One-stop network audit toolkit for the HackberryPi CM5</title>
+<meta name="description" content="A keyboard-driven terminal toolkit for the HackberryPi CM5: discover hosts, check domain controllers, find shares & printers, scan ports, survey Wi-Fi, test speed, and get prioritised security recommendations.">
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#11161d; --panel:#161b22; --border:#222b36;
+    --text:#e6edf3; --muted:#9da7b3; --accent:#58a6ff; --accent2:#3fb950;
+    --warn:#d29922; --bad:#f85149; --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+  code,kbd{font-family:var(--mono)}
+  kbd{background:var(--panel);border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:1px 7px;font-size:.85em}
+
+  /* Nav */
+  nav{position:sticky;top:0;z-index:10;background:rgba(13,17,23,.85);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
+  nav .wrap{display:flex;align-items:center;gap:20px;height:56px}
+  nav .brand{font-family:var(--mono);font-weight:700;color:var(--text)}
+  nav .brand .dot{color:var(--accent2)}
+  nav .links{margin-left:auto;display:flex;gap:18px;flex-wrap:wrap}
+  nav .links a{color:var(--muted);font-size:.92rem}
+  nav .links a:hover{color:var(--text);text-decoration:none}
+
+  /* Hero */
+  header.hero{padding:72px 0 48px;background:radial-gradient(1200px 400px at 50% -10%,rgba(88,166,255,.12),transparent 70%)}
+  .badge{display:inline-block;font-family:var(--mono);font-size:.78rem;color:var(--accent2);border:1px solid rgba(63,185,80,.35);background:rgba(63,185,80,.08);padding:3px 10px;border-radius:20px;margin-bottom:20px}
+  h1{font-size:clamp(2.1rem,5vw,3.4rem);line-height:1.1;margin:.2em 0}
+  h1 .grad{background:linear-gradient(90deg,#58a6ff,#3fb950);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .tagline{font-size:1.2rem;color:var(--muted);max-width:680px}
+  .cta{display:flex;gap:14px;flex-wrap:wrap;margin-top:28px}
+  .btn{display:inline-block;padding:11px 20px;border-radius:8px;font-weight:600;border:1px solid var(--border)}
+  .btn.primary{background:var(--accent);color:#0b0f14;border-color:var(--accent)}
+  .btn.primary:hover{background:#6cb2ff;text-decoration:none}
+  .btn.ghost{background:var(--panel);color:var(--text)}
+  .btn.ghost:hover{border-color:var(--accent);text-decoration:none}
+
+  .hero-shot{margin-top:44px;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.5);background:var(--bg2)}
+  .hero-shot img{display:block;width:100%}
+
+  section{padding:54px 0;border-top:1px solid var(--border)}
+  h2{font-size:1.7rem;margin:0 0 6px}
+  .sub{color:var(--muted);margin:0 0 28px}
+
+  /* Feature grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px;transition:border-color .15s,transform .15s}
+  .card:hover{border-color:var(--accent);transform:translateY(-2px)}
+  .card .ico{font-size:1.5rem}
+  .card h3{margin:10px 0 6px;font-size:1.08rem}
+  .card p{margin:0;color:var(--muted);font-size:.95rem}
+
+  /* Screens gallery */
+  .shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px}
+  figure{margin:0;background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  figure img{display:block;width:100%;background:#0c0c0c}
+  figcaption{padding:12px 16px;border-top:1px solid var(--border)}
+  figcaption b{display:block}
+  figcaption span{color:var(--muted);font-size:.9rem}
+
+  /* Code blocks */
+  pre{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 18px;overflow:auto}
+  pre code{color:#cdd6e0;font-size:.92rem;line-height:1.7}
+  .tok-c{color:var(--muted)}
+  .tok-k{color:var(--accent2)}
+
+  /* Two column */
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:28px}
+  @media(max-width:740px){.two{grid-template-columns:1fr}}
+
+  /* keys table */
+  table.keys{width:100%;border-collapse:collapse}
+  table.keys td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+  table.keys td:first-child{white-space:nowrap;width:120px}
+
+  .note{border-left:3px solid var(--warn);background:rgba(210,153,34,.08);padding:14px 18px;border-radius:0 8px 8px 0;color:#e8d9b0}
+  .note b{color:var(--warn)}
+
+  ul.clean{list-style:none;padding:0;margin:0}
+  ul.clean li{padding:7px 0 7px 26px;position:relative;color:var(--muted)}
+  ul.clean li::before{content:"›";position:absolute;left:6px;color:var(--accent2);font-weight:700}
+  ul.clean li b{color:var(--text);font-weight:600}
+
+  footer{padding:40px 0;color:var(--muted);font-size:.9rem;border-top:1px solid var(--border)}
+  footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <span class="brand">Hackberry<span class="dot">Pi</span>OS</span>
+    <div class="links">
+      <a href="#features">Features</a>
+      <a href="#screens">Screenshots</a>
+      <a href="#install">Install</a>
+      <a href="#usage">Usage</a>
+      <a href="#security">Security</a>
+      <a href="https://github.com/fmatsch/HackberryPiOS">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="badge">● for the HackberryPi CM5 · Raspberry Pi OS</span>
+    <h1>One-stop <span class="grad">network audit</span><br>in your pocket</h1>
+    <p class="tagline">Walk into any network you manage — Linux, Windows Active Directory,
+      or mixed — and get an instant, compact overview plus prioritised
+      recommendations. A keyboard-driven terminal UI built for the
+      HackberryPi's small display.</p>
+    <div class="cta">
+      <a class="btn primary" href="#install">Get started</a>
+      <a class="btn ghost" href="https://github.com/fmatsch/HackberryPiOS">View on GitHub</a>
+    </div>
+    <div class="hero-shot">
+      <img src="screenshots/01-dashboard.svg" alt="HackberryPiOS dashboard showing a network health score and prioritised recommendations">
+    </div>
+  </div>
+</header>
+
+<section id="features">
+  <div class="wrap">
+    <h2>Everything in one place</h2>
+    <p class="sub">Nine focused tools, one keyboard-driven dashboard, zero agents on your targets.</p>
+    <div class="grid">
+      <div class="card"><div class="ico">🩺</div><h3>Network health score</h3>
+        <p>A 0–100 score and a colour-coded, prioritised action list — your instant overview the moment you connect.</p></div>
+      <div class="card"><div class="ico">🖥️</div><h3>Host discovery</h3>
+        <p>Find every device by IP, name, MAC and vendor using <code>arp-scan</code> → <code>nmap</code> → ARP cache, with reverse-DNS and NetBIOS name resolution.</p></div>
+      <div class="card"><div class="ico">🏛️</div><h3>Domain Controller checks</h3>
+        <p>Locate DCs via AD's DNS SRV records and health-check Kerberos, LDAP/LDAPS, SMB and the Global Catalog with latency.</p></div>
+      <div class="card"><div class="ico">📁</div><h3>Shared drives (SMB)</h3>
+        <p>Enumerate shares per host and flag <b>anonymous / guest-readable</b> shares — a common, high-impact misconfiguration.</p></div>
+      <div class="card"><div class="ico">🔌</div><h3>Port &amp; service scanning</h3>
+        <p>Fast top-ports or full scans with service/version detection. Pure-Python fallback when nmap isn't installed.</p></div>
+      <div class="card"><div class="ico">🖨️</div><h3>Printer discovery</h3>
+        <p>Find printers via mDNS/Bonjour and by probing IPP, LPD and raw JetDirect ports across the subnet.</p></div>
+      <div class="card"><div class="ico">📶</div><h3>Wi-Fi survey</h3>
+        <p>Nearby APs with signal, channel, band and security; current link quality. Open and WEP/WPA1 networks are flagged.</p></div>
+      <div class="card"><div class="ico">⚡</div><h3>Speed &amp; latency</h3>
+        <p>Gateway RTT/jitter/loss, iperf3 LAN throughput, and a quick WAN download sanity check.</p></div>
+      <div class="card"><div class="ico">🛡️</div><h3>Security posture</h3>
+        <p>SMBv1 / SMB-signing checks, risky cleartext services, weak Wi-Fi — aggregated, severity-sorted findings.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="screens">
+  <div class="wrap">
+    <h2>See it in action</h2>
+    <p class="sub">Real exports from the terminal UI. Crisp SVG — zoom in as far as you like.</p>
+    <div class="shots">
+      <figure><img src="screenshots/01-dashboard.svg" alt="Dashboard">
+        <figcaption><b>Home dashboard</b><span>Health score + prioritised recommendations, refreshed after every scan.</span></figcaption></figure>
+      <figure><img src="screenshots/02-hosts.svg" alt="Hosts">
+        <figcaption><b>Hosts</b><span>IP, name, MAC and vendor for every discovered device.</span></figcaption></figure>
+      <figure><img src="screenshots/04-domain-controllers.svg" alt="Domain controllers">
+        <figcaption><b>DC / AD</b><span>Located via SRV records, health-checked across the AD port set.</span></figcaption></figure>
+      <figure><img src="screenshots/03-shares.svg" alt="SMB shares">
+        <figcaption><b>Shares</b><span>Anonymous-readable shares highlighted in red.</span></figcaption></figure>
+      <figure><img src="screenshots/05-wifi.svg" alt="Wi-Fi survey">
+        <figcaption><b>Wi-Fi</b><span>APs ranked by signal; open &amp; weak crypto flagged.</span></figcaption></figure>
+      <figure><img src="screenshots/06-security.svg" alt="Security findings">
+        <figcaption><b>Security</b><span>Severity-sorted findings aggregated from all scans.</span></figcaption></figure>
+      <figure><img src="screenshots/07-printers.svg" alt="Printers">
+        <figcaption><b>Printers</b><span>Discovered via mDNS and printing-port probes.</span></figcaption></figure>
+      <figure><img src="screenshots/08-speed.svg" alt="Speed test">
+        <figcaption><b>Speed</b><span>Latency, jitter, loss and throughput at a glance.</span></figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <h2>Installation</h2>
+    <p class="sub">Built for Raspberry Pi OS (Bookworm+). One script does it all.</p>
+    <pre><code><span class="tok-c"># Clone and install (system tools + Python venv + capabilities)</span>
+git clone https://github.com/fmatsch/HackberryPiOS.git
+<span class="tok-k">cd</span> HackberryPiOS
+./install.sh
+
+<span class="tok-c"># Launch the terminal UI</span>
+.venv/bin/hackberrypios</code></pre>
+    <div class="two" style="margin-top:24px">
+      <div>
+        <h3>Auto-launch on the device</h3>
+        <p style="color:var(--muted)">Make the UI open automatically when you log in on the
+          handheld's console — and turn it off just as easily.</p>
+        <pre><code>./scripts/autostart.sh enable
+./scripts/autostart.sh disable
+./scripts/autostart.sh status</code></pre>
+        <p style="color:var(--muted);font-size:.9rem">Only triggers on the primary console (tty1),
+          so SSH sessions are never affected. Suppress a single boot with
+          <code>HPI_NO_AUTOSTART=1</code>.</p>
+      </div>
+      <div>
+        <h3>Headless / scripted mode</h3>
+        <p style="color:var(--muted)">Run a full sweep over SSH or on a schedule and export JSON.</p>
+        <pre><code>hackberrypios --cli
+hackberrypios --cli \
+  --domain corp.example.com \
+  --json report.json
+hackberrypios --cli --print-json | jq .</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="usage">
+  <div class="wrap">
+    <h2>Usage</h2>
+    <p class="sub">Fully keyboard-operable — ideal for the HackberryPi's hardware keyboard.</p>
+    <div class="two">
+      <div>
+        <h3>Key bindings</h3>
+        <table class="keys">
+          <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Switch between tabs</td></tr>
+          <tr><td><kbd>r</kbd></td><td>Run the current tab's default scan</td></tr>
+          <tr><td><kbd>a</kbd></td><td><b>Scan all</b> — full sweep across every capability</td></tr>
+          <tr><td><kbd>d</kbd></td><td>Jump to the Home dashboard</td></tr>
+          <tr><td><kbd>Ctrl</kbd>+<kbd>R</kbd></td><td>Re-read local network info</td></tr>
+          <tr><td><kbd>e</kbd></td><td>Export a JSON report</td></tr>
+          <tr><td><kbd>q</kbd></td><td>Quit</td></tr>
+        </table>
+      </div>
+      <div>
+        <h3>Typical flow</h3>
+        <ul class="clean">
+          <li><b>Connect</b> the HackberryPi to the target network.</li>
+          <li><b>Launch</b> — it auto-detects interface, subnet, gateway, DNS and AD domain.</li>
+          <li>Press <kbd>a</kbd> for a <b>full sweep</b> across every tool.</li>
+          <li>Read the <b>score and recommendations</b> on Home.</li>
+          <li><b>Select a host</b> on the Hosts tab to pre-fill the Ports &amp; Security tabs.</li>
+          <li>Press <kbd>e</kbd> to <b>export</b> a full JSON report for your records.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="security">
+  <div class="wrap">
+    <h2>Scope &amp; safety</h2>
+    <p class="sub">A defensive, administration-focused tool — by design.</p>
+    <div class="note">
+      <b>Authorised use only.</b> Run HackberryPiOS only against networks and devices you
+      own or are explicitly authorised to assess. Active discovery and port scanning can
+      trip intrusion-detection systems.
+    </div>
+    <div class="two" style="margin-top:24px">
+      <div>
+        <h3>It does</h3>
+        <ul class="clean">
+          <li>Enumerate and identify hosts, services, shares and printers</li>
+          <li>Locate &amp; reachability-check domain controllers</li>
+          <li>Read SMB protocol / signing capability (standard nmap NSE)</li>
+          <li>Passively survey Wi-Fi and measure link quality</li>
+          <li>Measure latency and throughput</li>
+        </ul>
+      </div>
+      <div>
+        <h3>It never</h3>
+        <ul class="clean">
+          <li>Exploits any vulnerability</li>
+          <li>Brute-forces or guesses credentials</li>
+          <li>Writes to, modifies or deletes anything remote</li>
+          <li>Performs DoS, flooding or Wi-Fi deauth attacks</li>
+          <li>Captures or cracks Wi-Fi handshakes</li>
+        </ul>
+      </div>
+    </div>
+    <p style="margin-top:22px;color:var(--muted)">Full details in
+      <a href="SECURITY.md">SECURITY.md</a>,
+      <a href="USAGE.md">USAGE.md</a> and
+      <a href="ARCHITECTURE.md">ARCHITECTURE.md</a>.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>HackberryPiOS · MIT License · Built for the HackberryPi CM5</span>
+    <span><a href="https://github.com/fmatsch/HackberryPiOS">GitHub</a> ·
+      <a href="#">Back to top ↑</a></span>
+  </div>
+</footer>
+
+</body>
+</html>

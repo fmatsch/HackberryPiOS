@@ -1,0 +1,8 @@
+# HackberryPiOS — Python dependencies
+# Core UI framework (Terminal UI optimised for the HackberryPi display)
+textual>=0.58.0
+rich>=13.7.0
+
+# Optional but recommended Python helpers.
+# All heavy lifting is delegated to system CLI tools (nmap, smbclient, iw, ...),
+# so these stay intentionally minimal for a low-power handheld device.
