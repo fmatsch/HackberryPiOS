@@ -18,17 +18,44 @@ SKIP_APT=0
 APT_PACKAGES=(
   nmap arp-scan smbclient samba-common-bin avahi-utils
   iw network-manager iproute2 dnsutils iperf3 curl openssl
-  ldap-utils wkhtmltopdf
+  ldap-utils
+)
+# Optional extras — nice to have but must never block the install if a given
+# release has dropped them (e.g. wkhtmltopdf was removed on Debian 13/trixie;
+# PDF export falls back to Chromium headless, then to HTML).
+APT_OPTIONAL=(
+  wkhtmltopdf
 )
 
 say() { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[!]\033[0m %s\n' "$*"; }
 
+# Install a list of packages without aborting on any single failure: try the
+# whole list at once, and if that fails, retry package-by-package so one
+# missing candidate can't take the rest (or the whole script) down with it.
+apt_install_soft() {
+  local pkgs=("$@")
+  [[ ${#pkgs[@]} -eq 0 ]] && return 0
+  if sudo apt-get install -y "${pkgs[@]}"; then
+    return 0
+  fi
+  warn "Bulk install hit a snag — retrying package-by-package…"
+  local p
+  for p in "${pkgs[@]}"; do
+    sudo apt-get install -y "$p" >/dev/null 2>&1 \
+      && say "  installed $p" \
+      || warn "  skipped $p (no candidate in this release)"
+  done
+  return 0
+}
+
 if [[ "$SKIP_APT" -eq 0 ]]; then
   if command -v apt-get >/dev/null 2>&1; then
     say "Installing system tools (sudo apt-get)…"
-    sudo apt-get update
-    sudo apt-get install -y python3 python3-venv python3-pip "${APT_PACKAGES[@]}"
+    sudo apt-get update || warn "apt-get update failed; continuing with cached lists."
+    apt_install_soft python3 python3-venv python3-pip "${APT_PACKAGES[@]}"
+    say "Installing optional extras (best effort)…"
+    apt_install_soft "${APT_OPTIONAL[@]}"
   else
     warn "apt-get not found — skipping system packages (not a Debian system?)."
   fi

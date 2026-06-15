@@ -155,7 +155,7 @@ gracefully** with a clear message if something is missing.
 | `ping`, `curl` | `iputils-ping`, `curl` | Latency and WAN tests |
 | `openssl` | `openssl` | TLS / certificate inspection |
 | `ldapsearch` | `ldap-utils` | LDAP RootDSE (DC naming context) — optional |
-| `wkhtmltopdf` | `wkhtmltopdf` | PDF report export — optional (HTML works without it) |
+| `wkhtmltopdf` *or* Chromium | `wkhtmltopdf` / `chromium` | PDF report export — optional. PDF uses wkhtmltopdf, else Chromium headless; HTML always works without either. (wkhtmltopdf was dropped on Debian 13/trixie — Chromium is used there.) |
 
 Full MAC-vendor resolution reuses nmap's `nmap-mac-prefixes` database when
 present; the NTP clock-skew check needs no external tool at all (raw SNTP).

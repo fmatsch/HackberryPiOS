@@ -32,8 +32,10 @@ Manages everything that makes repeat visits fast.
 - **Baseline** — **Save baseline** records the currently discovered hosts for
   the active profile. On a later visit, **Compare** shows what changed:
   **NEW** (possible rogue device), **MISSING**, or **CHANGED** (IP/MAC/name).
-- **Report** — **Export HTML** (always) or **Export PDF** (if `wkhtmltopdf` is
-  installed) writes a styled, self-contained report to your home folder.
+- **Report** — **Export HTML** (always) or **Export PDF** writes a styled,
+  self-contained report to your home folder. PDF uses `wkhtmltopdf` if present,
+  otherwise Chromium headless; if neither is available it writes the HTML so you
+  can print to PDF from a browser.
 
 ### Hosts
 Discovers live hosts on the local subnet.

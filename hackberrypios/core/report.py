@@ -200,14 +200,40 @@ def write_html(state, path: str, *, profile_name: str = "") -> str:
     return path
 
 
+# Chromium-family binaries that can render HTML → PDF headlessly. On Debian 13
+# (trixie) wkhtmltopdf was dropped, but Chromium ships on Raspberry Pi OS.
+_CHROMIUM_BINS = ["chromium", "chromium-browser", "google-chrome",
+                  "google-chrome-stable"]
+
+
 def write_pdf(state, path: str, *, profile_name: str = "") -> tuple[bool, str]:
-    """Write a PDF if wkhtmltopdf is available. Returns (ok, message)."""
+    """Write a PDF using whatever HTML→PDF engine is available.
+
+    Order: wkhtmltopdf → Chromium headless → (fallback) HTML only.
+    Returns ``(ok, message_or_path)``.
+    """
     html_path = path.rsplit(".", 1)[0] + ".html"
     write_html(state, html_path, profile_name=profile_name)
-    if not have("wkhtmltopdf"):
-        return (False, f"wkhtmltopdf not installed; wrote HTML instead: "
-                       f"{os.path.basename(html_path)} (print to PDF from a browser)")
-    res = run(["wkhtmltopdf", "-q", html_path, path], timeout=60)
-    if res.ok and os.path.exists(path):
-        return (True, path)
-    return (False, res.stderr.strip() or "wkhtmltopdf failed")
+
+    if have("wkhtmltopdf"):
+        res = run(["wkhtmltopdf", "-q", html_path, path], timeout=60)
+        if res.ok and os.path.exists(path):
+            return (True, path)
+
+    for binary in _CHROMIUM_BINS:
+        if not have(binary):
+            continue
+        res = run([binary, "--headless=new", "--no-sandbox", "--disable-gpu",
+                   "--no-pdf-header-footer", f"--print-to-pdf={path}",
+                   f"file://{os.path.abspath(html_path)}"], timeout=90)
+        if not os.path.exists(path):
+            # Older Chromium needs the legacy --headless flag.
+            res = run([binary, "--headless", "--no-sandbox", "--disable-gpu",
+                       f"--print-to-pdf={path}",
+                       f"file://{os.path.abspath(html_path)}"], timeout=90)
+        if os.path.exists(path):
+            return (True, path)
+
+    return (False, f"no PDF engine (wkhtmltopdf/Chromium) found; wrote HTML "
+                   f"instead: {os.path.basename(html_path)} "
+                   f"(open it and print to PDF from a browser)")
