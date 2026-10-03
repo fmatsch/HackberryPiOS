@@ -118,6 +118,20 @@ def build_html(state, *, profile_name: str = "") -> str:
     printer_rows = [[_e(p.host), _e(p.name or "—"), _e(", ".join(p.protocols)),
                      _e(p.model or "—")] for p in s.printers]
 
+    # Services (network-wide)
+    service_rows = []
+    svc = getattr(s, "service_scan", None)
+    if svc is not None and not svc.error:
+        for group in svc.groups():
+            first = True
+            for e in sorted(group.endpoints, key=lambda e: (e.ip, e.port)):
+                host = f"{e.ip} ({e.name})" if e.name else e.ip
+                service_rows.append([
+                    f"<b>{_e(group.service)}</b>" if first else "",
+                    str(group.host_count) if first else "",
+                    _e(host), str(e.port), _e(e.version or "—")])
+                first = False
+
     # Wi-Fi
     wifi_rows = []
     if s.wifi and not s.wifi.error:
@@ -182,6 +196,9 @@ def build_html(state, *, profile_name: str = "") -> str:
 
 <h2>Printers</h2>
 {_table(["Host", "Name", "Protocols", "Model"], printer_rows, "No printers found.")}
+
+<h2>Services</h2>
+{_table(["Service", "Hosts", "Host", "Port", "Version"], service_rows, "No service scan run.")}
 
 <h2>Wi-Fi</h2>
 {_table(["SSID", "Signal %", "Channel", "Band", "Security"], wifi_rows, "No Wi-Fi survey run.")}

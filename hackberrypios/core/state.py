@@ -15,8 +15,8 @@ from datetime import datetime
 from enum import Enum
 
 from . import (baseline, dc, dhcp, discovery, netinfo, ports, printers,
-               profiles, recommendations, report, security, shares, speedtest,
-               timecheck, tlscheck, wifi)
+               profiles, recommendations, report, security, services, shares,
+               speedtest, timecheck, tlscheck, wifi)
 
 
 @dataclass
@@ -28,6 +28,7 @@ class AppState:
     printers: list[printers.Printer] = field(default_factory=list)
     wifi: wifi.WifiSurvey | None = None
     port_scans: dict[str, ports.PortScanResult] = field(default_factory=dict)
+    service_scan: services.NetworkServices | None = None
     security_findings: list[security.Finding] = field(default_factory=list)
     gateway_latency: speedtest.LatencyResult | None = None
     domain: str = ""
@@ -98,6 +99,30 @@ class AppState:
             target, result.open_ports)
         self.security_findings += security.evaluate_versions(
             target, result.open_ports)
+        self._dedup_findings()
+        return result
+
+    def run_service_scan(self, cidr: str | None = None, *, fast: bool = True,
+                         with_version: bool = True, progress=None
+                         ) -> services.NetworkServices:
+        """Discover services across the whole subnet.
+
+        Discovers hosts first if none are known yet, scans every host, and feeds
+        the open ports into the security engine so findings stay in sync.
+        """
+        if not self.hosts:
+            self.run_discovery(cidr, progress=progress)
+        result = services.scan_network(
+            self.hosts, fast=fast, with_version=with_version, progress=progress)
+        self.service_scan = result
+        by_host: dict[str, list[ports.OpenPort]] = {}
+        for ep in result.endpoints:
+            by_host.setdefault(ep.ip, []).append(ports.OpenPort(
+                port=ep.port, proto=ep.proto, service=ep.service,
+                version=ep.version))
+        for host, open_ports in by_host.items():
+            self.security_findings += security.evaluate_ports(host, open_ports)
+            self.security_findings += security.evaluate_versions(host, open_ports)
         self._dedup_findings()
         return result
 
@@ -288,6 +313,7 @@ class AppState:
             "shares": enc(self.share_results),
             "printers": enc(self.printers),
             "wifi": enc(self.wifi),
+            "services": enc(self.service_scan),
             "port_scans": enc(self.port_scans),
             "security_findings": enc(self.security_findings),
             "gateway_latency": enc(self.gateway_latency),

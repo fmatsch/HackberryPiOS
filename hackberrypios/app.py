@@ -61,6 +61,7 @@ class HackberryApp(App):
         super().__init__()
         self.state = AppState()
         self._hosts_all: list = []        # full host list for filtering
+        self._services = None             # last NetworkServices result
         self._wifi_timer = None           # live-survey interval handle
 
     # ----------------------------------------------------------------- #
@@ -77,6 +78,8 @@ class HackberryApp(App):
                 yield from self._compose_hosts()
             with TabPane("Ports", id="tab-ports"):
                 yield from self._compose_ports()
+            with TabPane("Services", id="tab-services"):
+                yield from self._compose_services()
             with TabPane("Shares", id="tab-shares"):
                 yield from self._compose_shares()
             with TabPane("Print", id="tab-printers"):
@@ -158,6 +161,22 @@ class HackberryApp(App):
                          id="ports-status", classes="status")
             table = DataTable(id="ports-table", cursor_type="row")
             table.add_columns("Port", "Proto", "Service", "Version")
+            yield table
+
+    def _compose_services(self) -> ComposeResult:
+        with Container(classes="pane"):
+            with Horizontal(classes="toolbar"):
+                yield Input(placeholder="CIDR (auto if empty)", id="services-target")
+                yield Button("Scan", id="services-run", variant="primary")
+                yield Button("Deep", id="services-deep")
+            with Horizontal(classes="toolbar"):
+                yield Input(placeholder="filter (service / host / version)…",
+                            id="services-filter")
+            yield Static("Scans every host on the subnet and lists the services "
+                         "running on it, grouped by service.",
+                         id="services-status", classes="status")
+            table = DataTable(id="services-table", cursor_type="row")
+            table.add_columns("Service", "Hosts", "Host", "Port", "Version")
             yield table
 
     def _compose_shares(self) -> ComposeResult:
@@ -268,6 +287,7 @@ class HackberryApp(App):
         active = self.query_one("#tabs", TabbedContent).active
         mapping = {
             "tab-hosts": lambda: self.run_hosts(""),
+            "tab-services": lambda: self.run_services(fast=True),
             "tab-printers": self.run_printers,
             "tab-wifi": self.run_wifi,
             "tab-shares": self.run_shares,
@@ -296,6 +316,8 @@ class HackberryApp(App):
             "hosts-os": self.run_os_fingerprint,
             "ports-fast": lambda: self.run_ports(fast=True),
             "ports-full": lambda: self.run_ports(fast=False),
+            "services-run": lambda: self.run_services(fast=True),
+            "services-deep": lambda: self.run_services(fast=False),
             "shares-run": self.run_shares,
             "printers-run": self.run_printers,
             "dc-run": self.run_dc,
@@ -339,6 +361,10 @@ class HackberryApp(App):
     @on(Input.Changed, "#sec-filter")
     def _filter_findings(self, event: Input.Changed) -> None:
         self._render_findings(event.value)
+
+    @on(Input.Changed, "#services-filter")
+    def _filter_services(self, event: Input.Changed) -> None:
+        self._render_services(event.value)
 
     @on(Select.Changed, "#site-select")
     def _profile_selected(self, event: Select.Changed) -> None:
@@ -404,6 +430,27 @@ class HackberryApp(App):
             note = (f.recommendation or f.detail or "")[:48]
             table.add_row(f"[{style}]{f.severity.label}[/]", f.title,
                           f.target, note)
+
+    def _render_services(self, filter_text: str = "") -> None:
+        table = self.query_one("#services-table", DataTable)
+        table.clear()
+        if self._services is None:
+            return
+        ft = filter_text.strip().lower()
+        for group in self._services.groups():
+            eps = sorted(group.endpoints,
+                         key=lambda e: (e.ip, e.port))
+            first = True
+            for e in eps:
+                host = f"{e.ip} ({e.name})" if e.name else e.ip
+                hay = f"{group.service} {host} {e.version} {e.port}".lower()
+                if ft and ft not in hay:
+                    continue
+                table.add_row(
+                    f"[b]{group.service}[/]" if first else "",
+                    str(group.host_count) if first else "",
+                    host, str(e.port), e.version or "—")
+                first = False
 
     def _refresh_security_table(self) -> None:
         self._render_findings(self.query_one("#sec-filter", Input).value)
@@ -573,6 +620,40 @@ class HackberryApp(App):
                f"{len(result.open_ports)} open port(s) on {result.target} "
                f"via {result.method} in {result.duration:.1f}s")
         self._set_status("ports-status", msg)
+        self._refresh_security_table()
+        self._refresh_dashboard()
+
+    @work(thread=True)
+    def run_services(self, *, fast: bool) -> None:
+        cidr = self.query_one("#services-target", Input).value.strip() or None
+        self.call_from_thread(
+            self._set_status, "services-status",
+            f"Scanning network services ({'fast' if fast else 'deep'})… "
+            "this can take a while.")
+
+        def progress(stage: str) -> None:
+            self.call_from_thread(self._set_status, "services-status",
+                                  f"Scanning: {stage}…")
+
+        result = self.state.run_service_scan(cidr, fast=fast, progress=progress)
+        self.call_from_thread(self._after_services, result)
+
+    def _after_services(self, result) -> None:
+        self._services = result
+        # Service scan may have run discovery itself; keep the Hosts tab in sync.
+        if self.state.hosts and len(self.state.hosts) != len(self._hosts_all):
+            self._hosts_all = list(self.state.hosts)
+            self._render_hosts(self.query_one("#hosts-filter", Input).value)
+        self._render_services(self.query_one("#services-filter", Input).value)
+        if result.error:
+            self._set_status("services-status", f"[red]{result.error}[/]")
+            return
+        n_services = len({e.label for e in result.endpoints})
+        self._set_status(
+            "services-status",
+            f"{len(result.endpoints)} service endpoint(s), {n_services} distinct "
+            f"service(s) across {result.host_count} host(s) "
+            f"via {result.method} in {result.duration:.0f}s.")
         self._refresh_security_table()
         self._refresh_dashboard()
 
@@ -885,6 +966,9 @@ class HackberryApp(App):
 
         hosts = self.state.run_discovery()
         self.call_from_thread(self._after_hosts, hosts)
+
+        services_result = self.state.run_service_scan(fast=True)
+        self.call_from_thread(self._after_services, services_result)
 
         if self.state.domain:
             statuses = self.state.run_dc_check(domain=self.state.domain)

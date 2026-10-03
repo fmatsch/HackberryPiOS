@@ -17,7 +17,8 @@ import tempfile
 
 from hackberrypios.core import baseline, profiles
 from hackberrypios.core import recommendations as reco
-from hackberrypios.core import discovery, ports, security, shares, utils, wifi
+from hackberrypios.core import (discovery, ports, security, services, shares,
+                                utils, wifi)
 from hackberrypios.core.security import Severity
 
 
@@ -142,6 +143,48 @@ def test_baseline_diff_recommendation_penalises_new_hosts():
         new_hosts=[baseline.BaselineHost("10.0.0.9", "mac", "rogue")]))
     assert a.score < 100
     assert any("new" in r.text.lower() for r in a.top)
+
+
+def test_services_nmap_multi_parser():
+    sample = """
+Starting Nmap 7.94
+Nmap scan report for 192.168.1.1
+Host is up (0.0010s latency).
+PORT     STATE SERVICE VERSION
+53/tcp   open  domain  dnsmasq 2.80
+80/tcp   open  http    lighttpd 1.4
+Nmap scan report for nas.lan (192.168.1.20)
+Host is up (0.0020s latency).
+PORT     STATE SERVICE VERSION
+22/tcp   open  ssh     OpenSSH 8.4
+445/tcp  open  smb
+Nmap done
+"""
+    eps = services._parse_nmap_multi(sample, {"192.168.1.20": "nas"})
+    by = {(e.ip, e.port): e for e in eps}
+    assert len(eps) == 4
+    assert by[("192.168.1.1", 53)].service == "domain"
+    assert by[("192.168.1.1", 80)].version == "lighttpd 1.4"
+    # resolved name from the discovery map wins over the nmap-reported one
+    assert by[("192.168.1.20", 22)].name == "nas"
+    assert by[("192.168.1.20", 445)].service == "smb"
+
+
+def test_services_grouping_orders_by_host_count():
+    result = services.NetworkServices(endpoints=[
+        services.ServiceEndpoint(ip="10.0.0.1", port=22, service="ssh"),
+        services.ServiceEndpoint(ip="10.0.0.2", port=22, service="ssh"),
+        services.ServiceEndpoint(ip="10.0.0.3", port=80, service="http"),
+    ])
+    groups = result.groups()
+    assert groups[0].service == "ssh"      # busiest service first
+    assert groups[0].host_count == 2
+    assert result.host_count == 3
+
+
+def test_services_empty_hosts_errors():
+    result = services.scan_network([])
+    assert result.error and not result.endpoints
 
 
 def _run_all():

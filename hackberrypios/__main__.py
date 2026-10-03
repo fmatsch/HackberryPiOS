@@ -42,6 +42,14 @@ def _cli(args: argparse.Namespace) -> int:
     hosts = state.run_discovery()
     print(f"  {len(hosts)} host(s) found")
 
+    print("Scanning network services…")
+    svc = state.run_service_scan(fast=True)
+    if svc.error:
+        print(f"  {svc.error}")
+    else:
+        print(f"  {len(svc.endpoints)} service endpoint(s) across "
+              f"{svc.host_count} host(s)")
+
     if args.domain or state.domain:
         dom = args.domain or state.domain
         print(f"Checking DCs for {dom}…")

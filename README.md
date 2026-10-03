@@ -26,6 +26,7 @@ agents on the targets.
 | **Domain Controller checks** | DC/AD | Locate DCs via DNS SRV records, health-check Kerberos/LDAP/SMB/GC, latency |
 | **Host discovery** | Hosts | IP + name (rDNS/NetBIOS) + MAC + **full OUI vendor** + **OS fingerprint**, via arp-scan → nmap → ARP cache; live **filter** |
 | **Port scanning** | Ports | Fast (top ports) or full scan, service/version detection (nmap) |
+| **Network service discovery** | Services | Scan the **whole subnet** and list every running service, **grouped by service** (ssh, http, smb…) with host, port and version |
 | **Shared drives (SMB)** | Shares | Enumerate shares per host; flags **anonymous/guest-readable** shares |
 | **Printer discovery** | Print | mDNS/Bonjour + IPP/LPD/JetDirect port probes |
 | **Security posture** | Sec | SMBv1/signing (single host + **subnet sweep**), **TLS/cert** check, **NTP/clock-skew**, **rogue-DHCP**, risky services, **version-based CVE hints**, weak Wi-Fi |

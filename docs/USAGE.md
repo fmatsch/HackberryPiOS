@@ -58,6 +58,23 @@ Scans a single target.
 - Service/version detection runs automatically when nmap is present.
 - Risky services discovered here feed the **Sec** tab automatically.
 
+### Services
+Scans **every host on the subnet** and lists the services running across the
+whole network, **grouped by service** — the fast way to answer "what's actually
+running out there, and where?".
+
+- **Scan** = fast sweep (nmap top-200 ports, light version detection) over all
+  discovered hosts. **Deep** = all ports (much slower on a busy network).
+- Leave **CIDR** empty to use the current subnet; if no hosts have been
+  discovered yet, discovery runs first automatically.
+- Results are grouped by service name (ssh, http, smb, rdp…), showing how many
+  hosts expose each one plus the per-host port and detected version. Type in the
+  filter box to narrow by service, host or version.
+- Open ports found here feed the **Sec** tab (risky services, version CVE hints)
+  and appear in exported reports.
+- With nmap installed the whole subnet is scanned in one efficient pass; without
+  it, a built-in pure-Python TCP scanner is used as a fallback.
+
 ### Shares
 Enumerates SMB/Windows file shares across discovered hosts.
 
@@ -120,7 +137,8 @@ services, version-based CVE hints, anonymous shares, weak Wi-Fi). Type in the
 
 ## Tips
 
-- Run **Hosts** first; **Shares** and **Print** reuse the discovered host list
-  (otherwise they enumerate the whole subnet, which is slower).
+- Run **Hosts** first; **Services**, **Shares** and **Print** reuse the
+  discovered host list (otherwise they enumerate the whole subnet, which is
+  slower). The **Services** tab will run discovery for you if you skip it.
 - If a tab shows "tool not installed", install the package named on the **Home**
   tab's missing-tools line, or re-run `install.sh`.
